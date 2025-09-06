@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Text RPG</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; }
+    #log { white-space: pre-wrap; border: 1px solid #ddd; padding: 1rem; min-height: 200px; }
+    button, input { margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>Keep the Future Human — MVP</h1>
+  <div id="log"></div>
+  <input id="input" placeholder="Type command..." />
+  <button id="send">Send</button>
+
+  <script type="module">
+    import { loadPyodide } from "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.mjs";
+    const pyodide = await loadPyodide();
+    await pyodide.runPythonAsync(`
+from js import document, localStorage
+
+state = {"location": "start", "energy": 3}
+
+def save():
+    localStorage.setItem("ktfh_save", str(state))
+
+def load():
+    from ast import literal_eval
+    s = localStorage.getItem("ktfh_save")
+    if s: state.update(literal_eval(s))
+
+def render():
+    log = document.getElementById("log")
+    loc = state["location"]
+    energy = state["energy"]
+    if loc == "start":
+        text = f"You wake in a coworking space. Energy={energy}\\n- talk\\n- rest"
+    elif loc == "talk":
+        text = f"You meet an activist debating compute caps. Energy={energy}\\n- argue\\n- leave"
+    else:
+        text = f"Lost. Energy={energy}\\n- leave"
+    log.textContent += "\\n\\n" + text
+
+def handle(cmd:str):
+    cmd = cmd.strip().lower()
+    if cmd == "talk":
+        state["location"] = "talk"; state["energy"] -= 1
+    elif cmd == "rest":
+        state["energy"] = min(5, state["energy"] + 1)
+    elif cmd in ("argue","leave"):
+        state["location"] = "start"
+    save()
+    render()
+
+load()
+render()
+    `);
+
+    const send = async () => {
+      const val = document.getElementById('input').value;
+      document.getElementById('input').value = "";
+      document.getElementById('log').textContent += `\n> ${val}`;
+      await pyodide.runPythonAsync(`handle(${JSON.stringify(val)})`);
+    };
+
+    document.getElementById('send').onclick = send;
+    document.getElementById('input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') send();
+    });
+  </script>
+</body>
+</html>
